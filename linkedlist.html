@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Linked List Visualizer</title>
+    <style>
+        /* 전체 레이아웃 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+
+        h1 { color: #333; }
+
+        /* 컨트롤 패널 디자인 */
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 80px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover { background-color: #0056b3; }
+        button.delete { background-color: #dc3545; }
+        button.delete:hover { background-color: #a71d2a; }
+
+        /* --- 시각화 영역 핵심 CSS --- */
+        #visualizer {
+            display: flex; /* 가로로 배치 */
+            align-items: center; /* 수직 중앙 정렬 */
+            flex-wrap: wrap; /* 너무 길어지면 줄바꿈 */
+            gap: 10px;
+            min-height: 150px;
+            padding: 20px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* 개별 노드 디자인 */
+        .node-wrapper {
+            display: flex;
+            align-items: center;
+            animation: fadeIn 0.5s ease-out; /* 등장 애니메이션 */
+        }
+
+        .node {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(145deg, #ffffff, #e6e6e6);
+            border: 2px solid #333;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 5px 5px 10px #d1d1d1, -5px -5px 10px #ffffff;
+            position: relative;
+        }
+
+        /* 메모리 주소 (장식용) */
+        .address {
+            position: absolute;
+            top: -20px;
+            font-size: 10px;
+            color: #888;
+            font-family: monospace;
+        }
+
+        /* 화살표 디자인 */
+        .arrow {
+            font-size: 24px;
+            color: #555;
+            margin: 0 10px;
+        }
+
+        /* Null 포인터 디자인 */
+        .null-node {
+            font-size: 14px;
+            font-weight: bold;
+            color: #dc3545;
+            border: 2px dashed #dc3545;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 C++ Linked List Visualization</h1>
+
+    <div class="controls">
+        <input type="number" id="inputValue" placeholder="값" value="10">
+        <input type="number" id="inputPos" placeholder="위치" value="1">
+        <button onclick="insertNode()">Insert</button>
+        <button class="delete" onclick="deleteNode()">Delete</button>
+    </div>
+
+    <div id="visualizer">
+        <div style="color: #aaa;">Loading WebAssembly...</div>
+    </div>
+
+    <script src="linkedlist.js"></script>
+    <script>
+        let listInstance = null;
+
+        Module.onRuntimeInitialized = function() {
+            listInstance = new Module.Linkedlist();
+            renderList();
+        };
+
+        function insertNode() {
+            if (!listInstance) return;
+            const val = parseInt(document.getElementById('inputValue').value);
+            const pos = parseInt(document.getElementById('inputPos').value);
+            if(isNaN(val) || isNaN(pos)) return alert("값과 위치를 입력하세요");
+
+            listInstance.insert(val, pos);
+            renderList();
+        }
+
+        function deleteNode() {
+            if (!listInstance) return;
+            const pos = parseInt(document.getElementById('inputPos').value);
+            listInstance.erase_by_pos(pos);
+            renderList();
+        }
+
+        // --- 핵심: 데이터를 그래픽으로 변환하는 함수 ---
+        function renderList() {
+            if (!listInstance) return;
+
+            const container = document.getElementById('visualizer');
+            container.innerHTML = ''; // 화면 초기화
+
+            const cppVector = listInstance.get_all_elements();
+            const size = cppVector.size();
+
+            // 1. 노드가 하나도 없을 때
+            if (size === 0) {
+                container.innerHTML = '<div class="null-node">Head -> nullptr</div>';
+                cppVector.delete();
+                return;
+            }
+
+            // 2. Head 표시
+            container.innerHTML += '<div class="arrow" style="font-size:14px">Head</div><div class="arrow">→</div>';
+
+            // 3. 벡터를 순회하며 HTML 요소 생성
+            for (let i = 0; i < size; i++) {
+                const value = cppVector.get(i);
+                
+                // 노드와 화살표를 감싸는 래퍼 생성
+                const wrapper = document.createElement('div');
+                wrapper.className = 'node-wrapper';
+
+                // 가짜 메모리 주소 생성 (그럴싸해 보이게)
+                const fakeAddress = `0x${(1000 + i * 8).toString(16).toUpperCase()}`;
+
+                wrapper.innerHTML = `
+                    <div class="node">
+                        <span class="address">${fakeAddress}</span>
+                        ${value}
+                    </div>
+                    <div class="arrow">→</div>
+                `;
+
+                container.appendChild(wrapper);
+            }
+
+            // 4. 마지막 nullptr 추가
+            container.innerHTML += '<div class="null-node">nullptr</div>';
+            
+            cppVector.delete(); // 메모리 해제
+        }
+    </script>
+</body>
+</html>

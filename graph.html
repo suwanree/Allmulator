@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Graph Visualization</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; display: flex; gap: 20px; }
+        
+        /* 왼쪽 컨트롤 패널 */
+        .controls { width: 250px; padding: 20px; background: #f8f9fa; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: fit-content; }
+        .controls input, .controls button { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        .controls button { background: #333; color: white; border: none; cursor: pointer; }
+        .controls button:hover { background: #555; }
+        .controls h3 { margin-top: 0; }
+
+        /* 오른쪽 시각화 영역 */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #fff;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            height: 600px;
+            overflow: hidden;
+        }
+
+        /* 노드 스타일 */
+        .node {
+            width: 40px; height: 40px;
+            background: white; border: 3px solid #333;
+            border-radius: 50%;
+            position: absolute;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; cursor: pointer;
+            z-index: 10;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .node:hover { transform: scale(1.1); }
+        .node.selected { background: #ffeb3b; border-color: #fbc02d; transform: scale(1.2); }
+
+        /* 엣지 (SVG) */
+        svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        line { stroke: #333; stroke-width: 2; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h3>1. 그래프 생성</h3>
+        <input type="number" id="vCount" placeholder="노드 개수 (V)" value="9">
+        <button onclick="initGraph()">V개 노드 생성</button>
+
+        <hr>
+
+        <h3>2. 랜덤 연결</h3>
+        <input type="number" id="eCount" placeholder="추가할 엣지 (E)" value="3">
+        <button onclick="addRandomEdges()">랜덤 연결 (Add E)</button>
+
+        <hr>
+        <p>💡 <b>수동 연결:</b><br>두 개의 노드를 차례로 클릭하세요.</p>
+        <button onclick="location.href='index.html'" style="background:#dc3545">메인으로</button>
+    </div>
+
+    <div id="canvas-container">
+        <svg id="edge-layer"></svg>
+        <div id="node-layer"></div>
+    </div>
+
+    <script src="graph.js"></script>
+    <script>
+        let graphInstance = null;
+        let nodePositions = {}; // 노드 좌표 저장용 { id: {x, y} }
+        let selectedNode = null; // 연결을 위해 선택된 첫 번째 노드
+        let currentNodeCount = 0;
+
+        Module.onRuntimeInitialized = function() {
+            console.log("Wasm Loaded");
+        };
+
+        // 1. 그래프 초기화 & 노드 배치 (격자 모양)
+        function initGraph() {
+            const V = parseInt(document.getElementById('vCount').value);
+            if(V < 1 || V > 100) return alert("1 ~ 100 사이로 입력해주세요.");
+
+            currentNodeCount = V;
+            graphInstance = new Module.Graph(V); // C++ 객체 생성
+            selectedNode = null;
+            
+            renderNodesGrid(V); // 화면 그리기
+            drawEdges(); // (초기엔 없음)
+        }
+
+        // 2. 격자 형태로 노드 배치 계산 및 렌더링
+        function renderNodesGrid(V) {
+            const container = document.getElementById('node-layer');
+            const svgLayer = document.getElementById('edge-layer');
+            container.innerHTML = '';
+            svgLayer.innerHTML = ''; // 엣지 초기화
+
+            const containerWidth = document.getElementById('canvas-container').clientWidth;
+            const containerHeight = document.getElementById('canvas-container').clientHeight;
+            
+            // 격자 계산 (Cols x Rows)
+            const cols = Math.ceil(Math.sqrt(V)); 
+            const rows = Math.ceil(V / cols);
+            
+            const xGap = containerWidth / (cols + 1);
+            const yGap = containerHeight / (rows + 1);
+
+            for(let i = 1; i <= V; i++) {
+                // 0-based index for calculation
+                const idx = i - 1;
+                const col = idx % cols;
+                const row = Math.floor(idx / cols);
+
+                const x = xGap * (col + 1);
+                const y = yGap * (row + 1);
+
+                // 좌표 저장
+                nodePositions[i] = {x, y};
+
+                // DOM 생성
+                const nodeDiv = document.createElement('div');
+                nodeDiv.className = 'node';
+                nodeDiv.innerText = i;
+                nodeDiv.style.left = `${x - 20}px`; // 중앙 정렬 보정 (width/2)
+                nodeDiv.style.top = `${y - 20}px`;
+                
+                // 클릭 이벤트 (수동 연결)
+                nodeDiv.onclick = () => handleNodeClick(i, nodeDiv);
+
+                container.appendChild(nodeDiv);
+            }
+        }
+
+        // 3. 수동 연결 로직
+        function handleNodeClick(id, element) {
+            // 첫 번째 선택
+            if (selectedNode === null) {
+                selectedNode = id;
+                element.classList.add('selected');
+            } 
+            // 두 번째 선택 (연결 시도)
+            else {
+                if (selectedNode === id) {
+                    // 같은 거 다시 누르면 취소
+                    selectedNode = null;
+                    element.classList.remove('selected');
+                    return;
+                }
+
+                // C++ 연결 함수 호출
+                graphInstance.connection(selectedNode, id);
+                
+                // 선택 해제 UI 처리
+                const prevNode = document.querySelectorAll('.node')[selectedNode - 1]; // 간단히 인덱스로 접근
+                prevNode.classList.remove('selected');
+                selectedNode = null;
+
+                // 화면 갱신
+                drawEdges();
+            }
+        }
+
+        // 4. 랜덤 엣지 추가
+        function addRandomEdges() {
+            if(!graphInstance) return alert("그래프를 먼저 생성해주세요.");
+            const E = parseInt(document.getElementById('eCount').value);
+            
+            graphInstance.addRandomEdges(E); // C++ 호출
+            drawEdges(); // 그리기
+        }
+
+        // 5. 엣지 그리기 (C++에서 데이터 가져옴)
+        function drawEdges() {
+            const svgLayer = document.getElementById('edge-layer');
+            svgLayer.innerHTML = ''; // 기존 선 삭제
+
+            // C++에서 인접 리스트 가져오기 (Vector<Vector<int>>)
+            const adj = graphInstance.getAdjacencyList();
+            
+            // 중복 그리기 방지를 위한 집합 (1-2 그렸으면 2-1은 패스)
+            const drawnEdges = new Set();
+
+            for (let u = 1; u <= currentNodeCount; u++) {
+                const neighbors = adj.get(u); // VectorInt
+                
+                for (let j = 0; j < neighbors.size(); j++) {
+                    const v = neighbors.get(j);
+                    
+                    // "작은 번호 -> 큰 번호" 일 때만 그리기 (양방향이므로 하나만 그리면 됨)
+                    if (u < v) {
+                        const start = nodePositions[u];
+                        const end = nodePositions[v];
+
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", start.x);
+                        line.setAttribute("y1", start.y);
+                        line.setAttribute("x2", end.x);
+                        line.setAttribute("y2", end.y);
+                        
+                        svgLayer.appendChild(line);
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

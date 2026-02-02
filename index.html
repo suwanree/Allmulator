@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Data Structure Sim - Home</title>
+    <style>
+        body { background: #222; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
+        
+        .tree-container { position: relative; width: 400px; height: 300px; }
+        
+        /* 노드 디자인 */
+        .node {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: #00d2d3; color: #222;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; text-decoration: none;
+            position: absolute; border: 4px solid #fff;
+            transition: transform 0.2s;
+            z-index: 2;
+        }
+        .node:hover { transform: scale(1.1); background: #54a0ff; }
+
+        /* 노드 위치 배치 (트리 모양) */
+        .root { top: 0; left: 50%; transform: translateX(-50%); }
+        .left { top: 150px; left: 50px; }
+        .right { top: 150px; right: 50px; }
+
+        /* 연결선 (SVG) */
+        svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none;}
+        line { stroke: white; stroke-width: 4; }
+    </style>
+</head>
+<body>
+    <h1>DS Visualizer</h1>
+    <div class="tree-container">
+        <svg>
+            <line x1="200" y1="40" x2="90" y2="190" />
+            <line x1="200" y1="40" x2="310" y2="190" />
+        </svg>
+
+        <a href="#" class="node root" style="background:#ff9f43">Home</a>
+        <a href="graph.html" class="node left">Graph</a>
+        <a href="linkedlist.html" class="node right">List</a>
+    </div>
+</body>
+</html>
